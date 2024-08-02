@@ -1,6 +1,7 @@
 package de.gessnerfl.fakesmtp.smtp.server;
 
 import de.gessnerfl.fakesmtp.repository.EmailRepository;
+import de.gessnerfl.fakesmtp.service.EmailSSEService;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,7 @@ public class BaseMessageListener implements MessageListener {
     private final EmailFilter emailFilter;
     private final EmailRepository emailRepository;
     private final MessageForwarder messageForwarder;
+    private final EmailSSEService emailSseService;
     private final Logger logger;
 
     @Autowired
@@ -27,12 +29,14 @@ public class BaseMessageListener implements MessageListener {
                                EmailFilter emailFilter,
                                EmailRepository emailRepository,
                                MessageForwarder messageForwarder,
+                               EmailSSEService sseService,
                                Logger logger) {
         this.blockedRecipientAddresses = blockedRecipientAddresses;
         this.emailFactory = emailFactory;
         this.emailFilter = emailFilter;
         this.emailRepository = emailRepository;
         this.messageForwarder = messageForwarder;
+        this.emailSseService = sseService;
         this.logger = logger;
     }
 
@@ -50,6 +54,9 @@ public class BaseMessageListener implements MessageListener {
         if(!emailFilter.ignore(sender,recipient)) {
             var email = emailFactory.convert(rawData);
             emailRepository.save(email);
+            // TODO: ensure saving TX was successful before submitting event
+            emailSseService.sendEventFor(email.getId(), email.getRawData());
+
             messageForwarder.forward(rawData);
         }
     }
